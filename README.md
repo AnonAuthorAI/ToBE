@@ -12,7 +12,7 @@
 - &#x1F34E; **Lightweight**: light computational overhead, no additional hyperparameters.
 - &#x1F34E; **Ease-of-use**: unified, concise, and extensible API design.
 
-**Intergrating [`TopoBalanceAugmenter`](https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L170) (*ToBE*) into your training loop with <5 lines of code:**
+**Intergrating [`TopoBalanceAugmenter`](https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L175) (*ToBE*) into your training loop with <5 lines of code:**
 
 ```python
 from tobe import TopoBalanceAugmenter
@@ -166,7 +166,7 @@ For other settings, we use the default values specified in [config.yaml](https:/
 
 ### TopoBalanceAugmenter
 
-https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L170
+https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L175
 
 Main class that implements the ToBE augmentation algorithm, inheriting from [`BaseGraphAugmenter`](https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L11). Implements 3 core steps of ToBE: 
 - (1) Node risk estimation.
