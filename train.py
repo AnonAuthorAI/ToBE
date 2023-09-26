@@ -1,5 +1,3 @@
-# %%
-
 import numpy as np
 import torch
 from args import parse_args
@@ -14,7 +12,7 @@ from tobe import TopoBalanceAugmenter
 from trainer import NodeClassificationTrainer
 from utils import get_model, get_device, print_centered
 
-MODE_SPACE = ["dummy", "pred", "topo"]
+MODE_SPACE = TopoBalanceAugmenter.MODE_SPACE
 
 
 def train(args):
@@ -118,5 +116,3 @@ if __name__ == "__main__":
     # sys.argv = [""]
     args = parse_args()
     train(args)
-
-    # %%

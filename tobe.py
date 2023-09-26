@@ -1,9 +1,9 @@
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 import time
 import torch
 import torch.nn.functional as F
 import torch_geometric as pyg
-from torch_geometric.utils import to_dense_adj
 from torch_geometric.utils import to_undirected
 from utils import seed_everything
 
@@ -142,7 +142,12 @@ class DummyAugmenter(BaseGraphAugmenter):
             x,
             edge_index,
             {
-                "aug_time(ms)": 0.0,
+                "time_aug(ms)": 0.0,
+                "time_unc(ms)": 0.0,
+                "time_risk(ms)": 0.0,
+                "time_neighbor_distr(ms)": 0.0,
+                "time_gen(ms)": 0.0,
+                "time_sim(ms)": 0.0,
                 "node_ratio(%)": 100.0,
                 "edge_ratio(%)": 100.0,
             },
@@ -172,23 +177,26 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
     Topological Balanced augmEntation (ToBE) for graph data.
 
     Parameters:
-    - mode: str, optional (default: "pred")
-        The augmentation mode. Must be one of ["dummy", "pred", "topo"].
+    - mode: str, optional (default: "tobe0")
+        The augmentation mode. Must be one of ["dummy", "tobe0", "tobe1"].
     - random_state: int or None, optional (default: None)
         Random seed for reproducibility.
 
     Methods:
-    - __init__(self, mode: str = "pred", random_state: int = None)
+    - __init__(self, mode: str = "tobe0", random_state: int = None)
         Initializes the TopoBalanceAugmenter instance.
 
     - init_with_data(self, data: pyg.data.Data)
         Initializes the augmenter with graph data.
 
+    - augment(self, model, x, edge_index)
+        Performs topology-aware graph augmentation.
+
+    - adapt_labels_and_train_mask(self, y, train_mask)
+        Adapts labels and training mask after augmentation.
+
     - info(self)
         Prints information about the augmenter.
-
-    - index_to_adj(x, edge_index, add_self_loop=False, remove_self_loop=False, sparse=False)
-        Converts edge indices to adjacency matrix.
 
     - predict_proba(model, x, edge_index, return_numpy=False)
         Computes predicted class probabilities using the model.
@@ -202,38 +210,32 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
     - get_virtual_node_features(x, y_pred, classes)
         Computes virtual node features based on predicted labels.
 
-    - get_connectivity_distribution(y_pred, adj, n_class, n_node)
-        Computes the distribution of connectivity labels.
-
-    - adapt_labels_and_train_mask(self, y: torch.Tensor, train_mask: torch.Tensor)
-        Adapts labels and training mask after augmentation.
-
-    - augment(self, model, x, edge_index)
-        Performs topology-aware graph augmentation.
+    - get_connectivity_distribution_sparse(y_pred, edge_index, n_class, n_node, n_edge)
+        Computes the distribution of neighbor labels for each node.
 
     - get_node_risk(self, y_pred_proba, y_pred)
         Computes node risk based on predicted class probabilities.
 
-    - get_node_similarity_to_candidate_classes(self, y_pred_proba, y_neighbor_distr)
-        Computes node similarity to candidate classes.
+    - estimate_node_posterior_likelihood(self, y_pred_proba, y_neighbor_distr)
+        Computes posterior likelihood for each node and class.
 
-    - get_virual_link_proba(self, node_similarities, y_pred)
-        Computes virtual link probabilities based on node similarities.
+    - get_virual_link_proba(self, node_posterior, y_pred)
+        Computes virtual link probabilities based on node posterior likelihood.
     """
 
-    MODE_SPACE = ["dummy", "pred", "topo"]
+    MODE_SPACE = ["dummy", "tobe0", "tobe1"]
 
     def __init__(
         self,
-        mode: str = "pred",
+        mode: str = "tobe0",
         random_state: int = None,
     ):
         """
         Initializes the TopoBalanceAugmenter instance.
 
         Parameters:
-        - mode: str, optional (default: "pred")
-            The augmentation mode. Must be one of ["dummy", "pred", "topo"].
+        - mode: str, optional (default: "tobe0")
+            The augmentation mode. Must be one of ["dummy", "tobe0", "tobe1"].
         - random_state: int or None, optional (default: None)
             Random seed for reproducibility.
         """
@@ -277,7 +279,6 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
         classes, train_class_counts = y_train.unique(return_counts=True)
         self.classes = classes
         self.train_class_counts = train_class_counts
-        self.adj = self.index_to_adj(x, edge_index)
         # basic stats
         self.n_node = x.shape[0]
         self.n_edge = edge_index.shape[1]
@@ -288,7 +289,12 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
         self.train_class_weights = train_class_counts / train_class_counts.max()
         self.empty_edge_index = torch.zeros(2, 0, dtype=torch.long, device=device)
         self.dummy_runtime_info = {
-            "aug_time(ms)": 0.0,
+            "time_aug(ms)": 0.0,
+            "time_unc(ms)": 0.0,
+            "time_risk(ms)": 0.0,
+            "time_neighbor_distr(ms)": 0.0,
+            "time_gen(ms)": 0.0,
+            "time_sim(ms)": 0.0,
             "node_ratio(%)": 100.0,
             "edge_ratio(%)": 100.0,
         }
@@ -333,19 +339,27 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
         y_pred_proba = self.predict_proba(model, x, edge_index)
         y_pred = y_pred_proba.argmax(axis=1)
         y_pred[train_mask] = self.y_train
-        if self.mode == "pred":
-            y_neighbor_distr = None
-        else:
-            y_neighbor_distr = self.get_connectivity_distribution(
-                y_pred, self.adj, self.n_class, self.n_node
-            )
 
         # compute node_risk and virtual link probability
         node_risk = self.get_node_risk(y_pred_proba, y_pred)
-        node_similarities = self.get_node_similarity_to_candidate_classes(
+
+        start_time_sim = time.time()
+        if self.mode == "tobe0":
+            y_neighbor_distr = None
+            self.time_neighbor_distr = 0.0
+        else:
+            y_neighbor_distr = self.get_connectivity_distribution_sparse(
+                y_pred, edge_index, self.n_class, self.n_node, self.n_edge
+            )
+            
+        node_posterior = self.estimate_node_posterior_likelihood(
             y_pred_proba, y_neighbor_distr
         )
-        virtual_link_proba = self.get_virual_link_proba(node_similarities, y_pred)
+        virtual_link_proba = self.get_virual_link_proba(node_posterior, y_pred)
+        time_cost_sim = time.time() - start_time_sim
+
+        start_time_gen = time.time()
+
         # assign link probability w.r.t node risk
         virtual_link_proba *= node_risk.reshape(-1, 1)
 
@@ -355,6 +369,7 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
             virtual_adj.indices(),
             virtual_adj.values(),
         )
+
         virtual_edge_index = self.edge_sampling(
             edge_index_candidates, edge_sampling_proba, self.random_state
         )
@@ -365,17 +380,47 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
 
         # compute virtual node features
         x_virtual = self.get_virtual_node_features(x, y_pred, self.classes)
+        time_cost_gen = time.time() - start_time_gen
 
         # concatenate results
-        used_time = time.time() - start_time
+        time_cost = time.time() - start_time
         x_aug = torch.concat([x, x_virtual])
         edge_index_aug = torch.concat([edge_index, virtual_edge_index], axis=1)
         info = {
-            "aug_time(ms)": used_time * 1000,
+            "time_aug(ms)": time_cost * 1000,
+            "time_unc(ms)": self.time_unc_comp * 1000,
+            "time_risk(ms)": self.time_risk_comp * 1000,
+            "time_sim(ms)": time_cost_sim * 1000,
+            "time_gen(ms)": time_cost_gen * 1000,
+            "time_neighbor_distr(ms)": self.time_neighbor_distr * 1000,
             "node_ratio(%)": x_aug.shape[0] / x.shape[0] * 100,
             "edge_ratio(%)": edge_index_aug.shape[1] / edge_index.shape[1] * 100,
         }
         return x_aug, edge_index_aug, info
+
+    def adapt_labels_and_train_mask(self, y: torch.Tensor, train_mask: torch.Tensor):
+        """
+        Adapts labels and training mask after augmentation.
+
+        Parameters:
+        - y: torch.Tensor
+            Original labels.
+        - train_mask: torch.Tensor
+            Original training mask.
+
+        Returns:
+        - new_y: torch.Tensor
+            Adapted labels.
+        - new_train_mask: torch.Tensor
+            Adapted training mask.
+        """
+        if self.mode == "dummy":
+            return y, train_mask
+        new_y = torch.concat([y, self.y_virtual])
+        new_train_mask = torch.concat(
+            [train_mask, torch.ones_like(self.y_virtual).bool()]
+        )
+        return new_y, new_train_mask
 
     def info(self):
         """
@@ -393,44 +438,6 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
             f"    device={self.device},\n"
             f")"
         )
-
-    @staticmethod
-    def index_to_adj(
-        x: torch.Tensor,
-        edge_index: torch.Tensor,
-        add_self_loop: bool = False,
-        remove_self_loop: bool = False,
-        sparse: bool = False,
-    ):
-        """
-        Converts edge indices to adjacency matrix.
-
-        Parameters:
-        - x: torch.Tensor
-            Node features.
-        - edge_index: torch.Tensor
-            Edge indices.
-        - add_self_loop: bool, optional (default: False)
-            Whether to add self-loops to the adjacency matrix.
-        - remove_self_loop: bool, optional (default: False)
-            Whether to remove self-loops from the adjacency matrix.
-        - sparse: bool, optional (default: False)
-            Whether to return the adjacency matrix in sparse format.
-
-        Returns:
-        - adj: torch.Tensor
-            The adjacency matrix.
-        """
-        assert not (add_self_loop == True and remove_self_loop == True)
-        num_nodes = len(x)
-        adj = to_dense_adj(edge_index, max_num_nodes=num_nodes)[0].bool()
-        if add_self_loop:
-            adj.fill_diagonal_(True)
-        if remove_self_loop:
-            adj.fill_diagonal_(False)
-        if sparse:
-            adj = adj.to_sparse()
-        return adj
 
     @staticmethod
     def predict_proba(
@@ -534,9 +541,9 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
         """
         return torch.stack([x[y_pred == label].mean(axis=0) for label in classes])
 
-    @staticmethod
-    def get_connectivity_distribution(
-        y_pred: torch.Tensor, adj: torch.Tensor, n_class: int, n_node: int
+
+    def get_connectivity_distribution_sparse(
+        self, y_pred: torch.Tensor, edge_index: torch.Tensor, n_class: int, n_node: int, n_edge: int
     ):
         """
         Computes the distribution of connectivity labels.
@@ -544,57 +551,37 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
         Parameters:
         - y_pred: torch.Tensor
             Predicted labels.
-        - adj: torch.Tensor
-            Adjacency matrix.
+        - edge_index: torch.Tensor
+            Edge indices (sparse).
         - n_class: int
             Number of classes.
         - n_node: int
             Number of nodes.
+        - n_edge: int
+            Number of edges.
 
         Returns:
-        - y_neighbor_distr: torch.Tensor
-            Connectivity label distribution.
+        - neighbor_y_distr: torch.Tensor
+            Normalized connectivity label distribution.
         """
-        # get connectivity label distribution
-        y_pred_mat = y_pred.mul(adj)
-        y_pred_mat[~adj.bool()] = n_class
-        y_neighbor_distr = (
-            torch.zeros(n_class + 1, n_node, dtype=torch.int, device=y_pred_mat.device)
-            .scatter_add_(
-                0,
-                y_pred_mat.T,
-                torch.ones(n_node, n_node, dtype=torch.int, device=y_pred_mat.device),
-            )[:n_class]
-            .T.float()
-        )
+        start_time = time.time()
+        
+        device = y_pred.device
+        edge_dest_class = torch.zeros((n_edge, n_class), dtype=torch.int, device=device).scatter_(
+            1, y_pred[edge_index[1]].unsqueeze(1), 1
+        )  # [n_edges, n_class]
+        neighbor_y_distr = torch.zeros(
+            (n_node, n_class), dtype=torch.int, device=device
+        ).scatter_add_(
+            dim=0, index=edge_index[0].repeat(n_class, 1).T, src=edge_dest_class,
+        ).float()  # [n_nodes, n_class]
+
         # row-wise normalization
-        y_neighbor_distr /= y_neighbor_distr.sum(axis=1).reshape(-1, 1)
-        y_neighbor_distr = y_neighbor_distr.nan_to_num(0)
-        return y_neighbor_distr
+        neighbor_y_distr /= neighbor_y_distr.sum(axis=1).reshape(-1, 1)
+        neighbor_y_distr = neighbor_y_distr.nan_to_num(0)
 
-    def adapt_labels_and_train_mask(self, y: torch.Tensor, train_mask: torch.Tensor):
-        """
-        Adapts labels and training mask after augmentation.
-
-        Parameters:
-        - y: torch.Tensor
-            Original labels.
-        - train_mask: torch.Tensor
-            Original training mask.
-
-        Returns:
-        - new_y: torch.Tensor
-            Adapted labels.
-        - new_train_mask: torch.Tensor
-            Adapted training mask.
-        """
-        if self.mode == "dummy":
-            return y, train_mask
-        new_y = torch.concat([y, self.y_virtual])
-        new_train_mask = torch.concat(
-            [train_mask, torch.ones_like(self.y_virtual).bool()]
-        )
-        return new_y, new_train_mask
+        self.time_neighbor_distr = time.time() - start_time
+        return neighbor_y_distr
 
     def get_node_risk(self, y_pred_proba: torch.Tensor, y_pred: torch.Tensor):
         """
@@ -611,19 +598,22 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
             Node risk scores.
         """
         # compute node pred
-        node_pred = 1 - y_pred_proba.max(axis=1).values
+        start_time = time.time()
+        node_unc = 1 - y_pred_proba.max(axis=1).values
+        self.time_unc_comp = time.time() - start_time
         # compute class-aware relative pred
-        node_unc_class_mean = self.get_group_mean(node_pred, y_pred, self.classes)
-        node_risk = (node_pred - node_unc_class_mean).clip(min=0)
+        node_unc_class_mean = self.get_group_mean(node_unc, y_pred, self.classes)
+        node_risk = (node_unc - node_unc_class_mean).clip(min=0)
         # calibrate node risk w.r.t class weights
         node_risk *= self.train_class_weights[y_pred]
+        self.time_risk_comp = time.time() - start_time
         return node_risk
 
-    def get_node_similarity_to_candidate_classes(
+    def estimate_node_posterior_likelihood(
         self, y_pred_proba: torch.Tensor, y_neighbor_distr: torch.Tensor
     ):
         """
-        Computes node similarity to candidate classes.
+        Estimates node posterior likelihood for each class.
 
         Parameters:
         - y_pred_proba: torch.Tensor
@@ -632,27 +622,27 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
             Connectivity label distribution.
 
         Returns:
-        - node_similarities: torch.Tensor
-            Node similarity scores.
+        - node_posterior: torch.Tensor
+            Node posterior likelihood.
         """
         mode = self.mode
-        if mode == "pred":
-            node_similarities = y_pred_proba
-        elif mode == "topo":
-            node_similarities = y_neighbor_distr
+        if mode == "tobe0":
+            node_posterior = y_pred_proba
+        elif mode == "tobe1":
+            node_posterior = y_neighbor_distr
         else:
             raise NotImplementedError
-        return node_similarities
+        return node_posterior
 
     def get_virual_link_proba(
-        self, node_similarities: torch.Tensor, y_pred: torch.Tensor
+        self, node_posterior: torch.Tensor, y_pred: torch.Tensor
     ):
         """
-        Computes virtual link probabilities based on node similarity.
+        Computes virtual link probabilities based on node posterior likelihood.
 
         Parameters:
-        - node_similarities: torch.Tensor
-            Node similarity scores.
+        - node_posterior: torch.Tensor
+            Node posterior likelihood.
         - y_pred: torch.Tensor
             Predicted labels.
 
@@ -660,10 +650,10 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
         - virtual_link_proba: torch.Tensor
             Virtual link probabilities.
         """
-        # set similarity to current predicted class as 0
-        node_similarities *= 1 - F.one_hot(y_pred, num_classes=self.n_class)
-        node_similarities = node_similarities.clip(min=0)
-        # row-wise normalize
-        node_similarities /= node_similarities.sum(axis=1).reshape(-1, 1)
-        virtual_link_proba = node_similarities.nan_to_num(0)
+        # set likelihood to current predicted class as 0
+        node_posterior *= 1 - F.one_hot(y_pred, num_classes=self.n_class)
+        node_posterior = node_posterior.clip(min=0)
+        # row-wise renormalize
+        node_posterior /= node_posterior.sum(axis=1).reshape(-1, 1)
+        virtual_link_proba = node_posterior.nan_to_num(0)
         return virtual_link_proba

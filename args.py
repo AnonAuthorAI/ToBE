@@ -3,7 +3,7 @@ import yaml
 
 IMB_TYPES = ["step", "natural"]
 GNN_ARCHS = ["GCN", "GAT", "SAGE"]
-TOBA_MODES = ["dummy", "pred", "topo", "all"]
+TOBA_MODES = ["dummy", "tobe0", "tobe1", "all"]
 
 
 def parse_args(config_path):

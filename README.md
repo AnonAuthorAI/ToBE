@@ -57,36 +57,36 @@ for epoch in range(epochs):
 ### Command line
 
 [`train.py`](https://github.com/AnonAuthorAI/ToBE/blob/main/train.py) provides a simple way to test ToBE under different settings: datasets, imbalance types, imbalance ratios, GNN architectures, etc. 
-For example, to test ToBE's effectiveness on the Cora dataset with a 10:1 step imbalance ratio using the GCN architecture, simply run:
+For example, to test ToBE's effectiveness on the CiteSeer dataset with a 10:1 step imbalance ratio using the GCN architecture, simply run:
 ```bash
-python train.py --dataset cora --imb_type step --imb_ratio 10 --gnn_arch GCN --tobe_mode all
+python train.py --dataset citeseer --imb_type step --imb_ratio 10 --gnn_arch GCN --tobe_mode all
 ```
 
 Output:
 ```
-================= Dataset [Cora] - StepIR [10] - ToBE [dummy] =================
-Best Epoch:   97 | train/val/test | BACC: 85.71/61.60/60.74 | MACRO-F1: 89.78/58.04/59.09 | node/edge ratio: 100.00/100.00% 
-Best Epoch:  122 | train/val/test | BACC: 71.43/57.82/55.99 | MACRO-F1: 70.08/53.30/51.88 | node/edge ratio: 100.00/100.00% 
-Best Epoch:  132 | train/val/test | BACC: 100.0/63.83/62.47 | MACRO-F1: 100.0/62.23/60.79 | node/edge ratio: 100.00/100.00% 
-Best Epoch:   60 | train/val/test | BACC: 100.0/61.60/60.74 | MACRO-F1: 100.0/58.04/59.09 | node/edge ratio: 100.00/100.00% 
-Best Epoch:  151 | train/val/test | BACC: 100.0/57.82/55.99 | MACRO-F1: 100.0/53.30/51.88 | node/edge ratio: 100.00/100.00% 
-Avg Test Performance (5 runs):  | BACC: 59.19 ± 1.20 | MACRO-F1: 56.55 ± 1.72
+=============== Dataset [Citeseer] - StepIR [10] - ToBE [dummy] ===============
+Best Epoch:   57 | train/val/test | BACC: 100.0/42.27/41.85 | MACRO-F1: 100.0/33.57/32.96 | node/edge ratio: 100.00/100.00% 
+Best Epoch:  211 | train/val/test | BACC: 100.0/46.49/44.47 | MACRO-F1: 100.0/39.83/37.62 | node/edge ratio: 100.00/100.00% 
+Best Epoch:   85 | train/val/test | BACC: 100.0/35.72/36.41 | MACRO-F1: 100.0/28.07/27.64 | node/edge ratio: 100.00/100.00% 
+Best Epoch:   66 | train/val/test | BACC: 100.0/36.54/36.79 | MACRO-F1: 100.0/28.47/26.82 | node/edge ratio: 100.00/100.00% 
+Best Epoch:  171 | train/val/test | BACC: 100.0/34.90/32.80 | MACRO-F1: 100.0/22.77/21.23 | node/edge ratio: 100.00/100.00% 
+Avg Test Performance (5 runs):  | BACC: 38.46 ± 1.86 | MACRO-F1: 29.26 ± 2.50
 
-================== Dataset [Cora] - StepIR [10] - ToBE [pred] ==================
-Best Epoch:  134 | train/val/test | BACC: 100.0/67.12/65.83 | MACRO-F1: 100.0/63.63/63.12 | node/edge ratio: 100.26/102.97% 
-Best Epoch:  141 | train/val/test | BACC: 100.0/71.83/68.17 | MACRO-F1: 100.0/69.45/66.30 | node/edge ratio: 100.26/103.18% 
-Best Epoch:  134 | train/val/test | BACC: 100.0/71.94/70.33 | MACRO-F1: 100.0/69.88/68.94 | node/edge ratio: 100.26/102.88% 
-Best Epoch:  305 | train/val/test | BACC: 100.0/66.65/65.55 | MACRO-F1: 100.0/64.05/63.93 | node/edge ratio: 100.26/103.11% 
-Best Epoch:  316 | train/val/test | BACC: 100.0/62.95/60.66 | MACRO-F1: 100.0/59.56/58.63 | node/edge ratio: 100.26/103.32% 
-Avg Test Performance (5 runs):  | BACC: 66.11 ± 1.44 | MACRO-F1: 64.18 ± 1.54
+=============== Dataset [Citeseer] - StepIR [10] - ToBE [tobe0] ===============
+Best Epoch:  153 | train/val/test | BACC: 100.0/60.11/59.61 | MACRO-F1: 100.0/58.46/58.69 | node/edge ratio: 100.18/103.91% 
+Best Epoch:  257 | train/val/test | BACC: 100.0/48.88/49.08 | MACRO-F1: 100.0/45.81/44.28 | node/edge ratio: 100.18/103.09% 
+Best Epoch:  550 | train/val/test | BACC: 100.0/60.17/58.72 | MACRO-F1: 100.0/59.64/58.47 | node/edge ratio: 100.18/103.79% 
+Best Epoch:  296 | train/val/test | BACC: 100.0/49.13/45.13 | MACRO-F1: 100.0/46.62/42.84 | node/edge ratio: 100.18/103.80% 
+Best Epoch:   80 | train/val/test | BACC: 100.0/59.10/54.94 | MACRO-F1: 100.0/56.44/53.61 | node/edge ratio: 100.18/103.88% 
+Avg Test Performance (5 runs):  | BACC: 53.50 ± 2.50 | MACRO-F1: 51.58 ± 3.04
 
-================== Dataset [Cora] - StepIR [10] - ToBE [topo] ==================
-Best Epoch:   81 | train/val/test | BACC: 100.0/69.67/68.66 | MACRO-F1: 100.0/67.24/66.88 | node/edge ratio: 100.26/101.45% 
-Best Epoch:  428 | train/val/test | BACC: 100.0/73.40/69.96 | MACRO-F1: 100.0/72.77/69.26 | node/edge ratio: 100.26/101.72% 
-Best Epoch:  117 | train/val/test | BACC: 100.0/75.62/73.93 | MACRO-F1: 100.0/71.35/70.81 | node/edge ratio: 100.26/101.54% 
-Best Epoch:   71 | train/val/test | BACC: 100.0/69.50/67.75 | MACRO-F1: 100.0/68.11/66.80 | node/edge ratio: 100.26/101.54% 
-Best Epoch:   77 | train/val/test | BACC: 100.0/78.03/77.92 | MACRO-F1: 100.0/75.06/76.42 | node/edge ratio: 100.26/101.60% 
-Avg Test Performance (5 runs):  | BACC: 71.64 ± 1.69 | MACRO-F1: 70.03 ± 1.58
+=============== Dataset [Citeseer] - StepIR [10] - ToBE [tobe1] ===============
+Best Epoch:  182 | train/val/test | BACC: 100.0/59.62/59.83 | MACRO-F1: 100.0/58.64/59.45 | node/edge ratio: 100.18/101.06% 
+Best Epoch:   73 | train/val/test | BACC: 98.33/51.08/51.65 | MACRO-F1: 98.35/48.23/47.97 | node/edge ratio: 100.18/100.87% 
+Best Epoch:  130 | train/val/test | BACC: 100.0/61.34/61.63 | MACRO-F1: 100.0/59.70/60.94 | node/edge ratio: 100.18/100.92% 
+Best Epoch:  111 | train/val/test | BACC: 100.0/60.22/58.04 | MACRO-F1: 100.0/59.83/57.97 | node/edge ratio: 100.18/100.89% 
+Best Epoch:  263 | train/val/test | BACC: 99.17/50.58/50.54 | MACRO-F1: 99.17/43.60/43.63 | node/edge ratio: 100.18/101.40% 
+Avg Test Performance (5 runs):  | BACC: 56.34 ± 1.99 | MACRO-F1: 53.99 ± 3.08
 ```
 
 The default experiment settings (arguments) are specified in the configuration file [`config.yaml`](https://github.com/AnonAuthorAI/ToBE/blob/main/config.yaml).
@@ -140,11 +140,11 @@ Full argument list and descriptions are as follows:
 --tqdm | bool, default=False
     Enable a tqdm progress bar during training if set to True.
 
---tobe_mode | str, default="all", choices=["dummy", "pred", "topo", "all"]
-    Mode of the ToBE. Choose from "dummy," "pred," "topo," or "all."
+--tobe_mode | str, default="all", choices=["dummy", "tobe0", "tobe1", "all"]
+    Mode of the ToBE. Choose from "dummy," "tobe0," "tobe1," or "all."
     if "dummy," ToBE is disabled.
-    if "pred," ToBE is enabled with only prediction-based augmentation.
-    if "topo," ToBE is enabled with only topology-based augmentation.
+    if "tobe0," ToBE is enabled with 0th-order posterior likelihood estimation.
+    if "tobe1," ToBE is enabled with 1st-order posterior likelihood estimation.
     if "all," will run all modes and report the result for comparison.
 ```
 
@@ -156,7 +156,10 @@ We also provide an example jupyter notebook [train_notebook.ipynb](https://githu
 | --------------- | ------------------------------------------ | ------------------------------------------------------------------ |
 | `DATASET_SPACE` | `['cora', 'citeseer', 'pubmed']`           | The datasets to use.                                               |
 | `IMB_TYPES`     | `{'step': [10, 20], 'natural': [50, 100]}` | The imbalance types and ratios.                                    |
-| `TOBE_MODES`    | `['dummy', 'pred', 'topo']`                | The ToBE modes to test, `dummy` means no topological augmentation. |
+| `TOBE_MODES`    | `['dummy', 'tobe0', 'tobe1']`              | The ToBE modes to test, `dummy` means no topological augmentation. |
+
+You can reproduce all results by simply run the notebook, or customize the settings (simply by modifying variables in the config cell) to test your own combinations.
+For other settings, we use the default values specified in [config.yaml](https://github.com/AnonAuthorAI/ToBE/blob/main/config.yaml).
 
 
 ## API reference
@@ -166,9 +169,9 @@ We also provide an example jupyter notebook [train_notebook.ipynb](https://githu
 https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L170
 
 Main class that implements the ToBE augmentation algorithm, inheriting from [`BaseGraphAugmenter`](https://github.com/AnonAuthorAI/ToBE/blob/main/tobe.py#L11). Implements 3 core steps of ToBE: 
-- (1) node risk estimation
-- (2) candidate class selection
-- (3) virtual topology augmentation.
+- (1) Node risk estimation.
+- (2) Posterior likelihood estimation.
+- (3) Virtual topology augmentation.
 
 ```python
 class TopoBalanceAugmenter(BaseGraphAugmenter):
@@ -176,8 +179,8 @@ class TopoBalanceAugmenter(BaseGraphAugmenter):
     Topological Balanced augmEntation (ToBE) for graph data.
 
     Parameters:
-    - mode: str, optional (default: "pred")
-        The augmentation mode. Must be one of ["dummy", "pred", "topo"].
+    - mode: str, optional (default: "tobe0")
+        The augmentation mode. Must be one of ["dummy", "tobe0", "tobe1"].
     - random_state: int or None, optional (default: None)
         Random seed for reproducibility.
     """
